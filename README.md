@@ -1,22 +1,12 @@
 # Home Detail - Gestão de Obras
 
-Aplicação simples e eficiente para planeamento, gestão de tarefas e cronogramas de obras.
+Sistema de planeamento de obras com cronograma automático e geração de PDFs.
 
 ## Funcionalidades
-- Definir Nome da Obra, Morada, Área, Data de Início e Prazo Final
-- Escolha de Tarefas específicas por projeto
-- Cálculo automático dos tempos baseados na área
-- Ajustes manuais dos tempos diretamente na aplicação
-- Geração de Cronograma com Gantt Chart
-- Exportação para PDF
-- Gestão de múltiplos projetos simultaneamente
+- Planeamento com dependências
+- Cronograma Gantt interativo
+- Exportação em PDF
 
-## Tecnologias
-- Python
-- Streamlit
-- Matplotlib
-- ReportLab
-
-## Instalação
-```bash
-pip install -r requirements.txt
+## Como usar
+1. Instalar dependências: `pip install -r requirements.txt`
+2. Executar app: `streamlit run app.py`
