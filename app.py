@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import plotly.express as px
 import os
+import base64
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
@@ -19,7 +20,7 @@ workers = {
 # Especialidades múltiplas
 multiskilled = 3
 
-# Tempos de tarefas (ajustados para menos dias)
+# Tempos de tarefas (ajustados)
 task_times = {
     'Remocao Armarios Loicas': 0.2,
     'Demolicoes Rocos': 0.5,
@@ -90,8 +91,6 @@ def agendar(tarefas, inicio):
             break
     return calendario
 
-import base64
-
 def gerar_pdf(nome, morada, calendario):
     if not os.path.exists("projetos_guardados"):
         os.makedirs("projetos_guardados")
@@ -112,11 +111,10 @@ def gerar_pdf(nome, morada, calendario):
             y = height - 50
     c.save()
 
-    # Gerar botão de download
     with open(caminho, "rb") as pdf_file:
         pdf_bytes = pdf_file.read()
         b64 = base64.b64encode(pdf_bytes).decode()
-        href = f'<a href="data:application/octet-stream;base64,{b64}" download="{nome.replace(" ", "_")}.pdf">📄 Baixar PDF</a>'
+        href = f'<a href="data:application/octet-stream;base64,{b64}" download="{nome.replace(' ', '_')}.pdf">📄 Baixar PDF</a>'
         st.markdown(href, unsafe_allow_html=True)
 
 def gantt_chart(calendario):
@@ -143,10 +141,14 @@ prazo_final = st.date_input("Prazo Máximo de Conclusão")
 st.subheader("Selecionar Tarefas")
 tarefas_escolhidas = st.multiselect("Quais tarefas esta obra tem?", list(task_times.keys()))
 
+if 'calendario' not in st.session_state:
+    st.session_state.calendario = None
+
 if st.button("Gerar Cronograma"):
     if nome_obra and morada and tarefas_escolhidas:
         tempos = calcular_tempo(area_m2, tarefas_escolhidas)
         calendario = agendar(tempos, datetime.combine(data_inicio, datetime.min.time()))
+        st.session_state.calendario = (nome_obra, morada, calendario)
 
         st.success("Cronograma gerado!")
         st.write("### Detalhes:")
@@ -154,8 +156,10 @@ if st.button("Gerar Cronograma"):
             st.write(f"**{tarefa}**: {inicio.strftime('%d-%m-%Y')} → {fim.strftime('%d-%m-%Y')}")
 
         gantt_chart(calendario)
-
-        if st.button("Gerar PDF"):
-            gerar_pdf(nome_obra, morada, calendario)
     else:
         st.warning("Preenche todos os campos e seleciona pelo menos uma tarefa!")
+
+if st.session_state.calendario:
+    nome, morada, calendario = st.session_state.calendario
+    if st.button("Gerar e Baixar PDF"):
+        gerar_pdf(nome, morada, calendario)
