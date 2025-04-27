@@ -5,6 +5,7 @@ import plotly.express as px
 import os
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+import base64
 
 # Definir equipas
 workers = {
@@ -109,7 +110,13 @@ def gerar_pdf(nome, morada, calendario):
             c.showPage()
             y = height - 50
     c.save()
-    st.success(f"PDF gerado: {caminho}")
+    return caminho
+
+def link_download_pdf(file_path, label="📥 Fazer Download do PDF"):
+    with open(file_path, "rb") as f:
+        base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+    href = f'<a href="data:application/octet-stream;base64,{base64_pdf}" download="{os.path.basename(file_path)}">{label}</a>'
+    return href
 
 def gantt_chart(calendario):
     df = pd.DataFrame({
@@ -147,6 +154,7 @@ if st.button("Gerar Cronograma"):
         gantt_chart(calendario)
 
         if st.button("Gerar PDF"):
-            gerar_pdf(nome_obra, morada, calendario)
+            caminho_pdf = gerar_pdf(nome_obra, morada, calendario)
+            st.markdown(link_download_pdf(caminho_pdf), unsafe_allow_html=True)
     else:
         st.warning("Preenche todos os campos e seleciona pelo menos uma tarefa!")
