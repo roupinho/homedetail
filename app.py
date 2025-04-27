@@ -1,209 +1,152 @@
+import streamlit as st
 from datetime import datetime, timedelta
-import matplotlib.pyplot as plt
+import pandas as pd
+import plotly.express as px
+import os
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-import os
 
-# Definir equipas e especialidades
+# Definir equipas
 workers = {
-    'pedreiro': 5,
-    'servente': 10,
-    'electricista': 1,
-    'canalizador': 1,
-    'pintor': 2,
-    'gesso_laminado': 2
+    'Pedreiro': 5,
+    'Servente': 10,
+    'Electricista': 1,
+    'Canalizador': 1,
+    'Pintor': 2,
+    'Gesso Laminado': 2
 }
 
-# Pedreiros com múltiplas especialidades
+# Especialidades múltiplas
 multiskilled = 3
 
-# Definir tempos por tarefa (em dias por unidade)
+# Tempos de tarefas
 task_times = {
-    'remocao_armarios_loicas': 0.5,
-    'demolicoes_rocos': 1,
-    'demolicao_paredes': 2,
-    'canalizacoes': 0.5,
-    'eletricidades': 0.5,
-    'assentamento_base_duche': 0.5,
-    'assentamento_sanitarios': 0.5,
-    'estuque': 2,
-    'pintura': 1,
-    'montagem_moveis': 2,
-    'barramento_paredes': 1,
-    'regularizacao_pavimento': 1,
-    'preparacao_paredes': 1,
-    'teto_falso_montagem': 1,
-    'acabamento_pintura_teto_falso': 1,
-    'divisoria_gesso_laminado': 1,
-    'pre_instalacao_ac': 1,
-    'assentamento_soalho': 0.5,
-    'assentamento_ladrilho': 1,
-    'assentamento_azulejo': 1,
-    'caixilharias': 1
+    'Remocao Armarios Loicas': 0.5,
+    'Demolicoes Rocos': 1,
+    'Demolicao Paredes': 2,
+    'Canalizacoes': 0.5,
+    'Eletricidades': 0.5,
+    'Assentamento Base Duche': 0.5,
+    'Assentamento Sanitario': 0.5,
+    'Estuque': 2,
+    'Pintura': 1,
+    'Montagem Moveis': 2,
+    'Barramento Paredes': 1,
+    'Regularizacao Pavimento': 1,
+    'Preparacao Paredes': 1,
+    'Teto Falso Montagem': 1,
+    'Acabamento Pintura Teto Falso': 1,
+    'Divisoria Gesso Laminado': 1,
+    'Pre Instalacao AC': 1,
+    'Assentamento Soalho': 0.5,
+    'Assentamento Ladrilho': 1,
+    'Assentamento Azulejo': 1,
+    'Caixilharias': 1
 }
 
-# Dependências de tarefas
-task_dependencies = {
-    'demolicoes_rocos': ['remocao_armarios_loicas'],
-    'demolicao_paredes': ['remocao_armarios_loicas'],
-    'canalizacoes': ['demolicoes_rocos'],
-    'eletricidades': ['demolicoes_rocos'],
-    'assentamento_base_duche': ['canalizacoes'],
-    'estuque': ['canalizacoes', 'eletricidades'],
-    'pintura': ['estuque', 'preparacao_paredes'],
-    'montagem_moveis': ['pintura'],
-    'assentamento_sanitarios': ['pintura'],
-    'teto_falso_montagem': ['demolicoes_rocos'],
-    'acabamento_pintura_teto_falso': ['teto_falso_montagem'],
-    'divisoria_gesso_laminado': ['demolicoes_rocos'],
-    'pre_instalacao_ac': ['demolicoes_rocos'],
-    'assentamento_soalho': ['regularizacao_pavimento'],
-    'assentamento_ladrilho': ['regularizacao_pavimento'],
-    'assentamento_azulejo': ['regularizacao_pavimento']
+# Dependencias
+dependencies = {
+    'Demolicoes Rocos': ['Remocao Armarios Loicas'],
+    'Demolicao Paredes': ['Remocao Armarios Loicas'],
+    'Canalizacoes': ['Demolicoes Rocos'],
+    'Eletricidades': ['Demolicoes Rocos'],
+    'Assentamento Base Duche': ['Canalizacoes'],
+    'Estuque': ['Canalizacoes', 'Eletricidades'],
+    'Pintura': ['Estuque', 'Preparacao Paredes'],
+    'Montagem Moveis': ['Pintura'],
+    'Assentamento Sanitario': ['Pintura'],
+    'Teto Falso Montagem': ['Demolicoes Rocos'],
+    'Acabamento Pintura Teto Falso': ['Teto Falso Montagem'],
+    'Divisoria Gesso Laminado': ['Demolicoes Rocos'],
+    'Pre Instalacao AC': ['Demolicoes Rocos'],
+    'Assentamento Soalho': ['Regularizacao Pavimento'],
+    'Assentamento Ladrilho': ['Regularizacao Pavimento'],
+    'Assentamento Azulejo': ['Regularizacao Pavimento']
 }
 
-# Função para calcular duração total baseada na área
-def calcular_tempo_total(area_m2, tarefas):
-    unidades = area_m2 / 4
-    tempo_total = {}
-    for tarefa in tarefas:
-        tempo = task_times.get(tarefa, 1) * unidades
-        tempo_total[tarefa] = round(tempo, 1)
-    return tempo_total
+# Funcoes principais
+def calcular_tempo(area, tarefas):
+    unidades = area / 4
+    return {tarefa: round(task_times.get(tarefa, 1) * unidades, 1) for tarefa in tarefas}
 
-# Função para agendar tarefas respeitando dependências ajustadas
-def agendar_tarefas(tempo_total, data_inicio, tarefas_selecionadas):
+def agendar(tarefas, inicio):
     calendario = {}
-    tarefas_concluidas = set()
-    dia_atual = data_inicio
+    concluidas = set()
+    dia_atual = inicio
 
-    while len(tarefas_concluidas) < len(tempo_total):
+    while len(concluidas) < len(tarefas):
         progresso = False
-        for tarefa, duracao in tempo_total.items():
-            if tarefa in tarefas_concluidas:
+        for tarefa, duracao in tarefas.items():
+            if tarefa in concluidas:
                 continue
-            deps = task_dependencies.get(tarefa, [])
-            deps = [d for d in deps if d in tarefas_selecionadas]
-            if all(d in tarefas_concluidas for d in deps):
+            deps = dependencies.get(tarefa, [])
+            if all(d in concluidas for d in deps):
                 calendario[tarefa] = (dia_atual, dia_atual + timedelta(days=int(duracao)))
                 dia_atual += timedelta(days=int(duracao))
-                tarefas_concluidas.add(tarefa)
+                concluidas.add(tarefa)
                 progresso = True
         if not progresso:
-            print("\nErro: dependências não resolvidas. Verifique seleção de tarefas.")
+            st.error("Erro de dependências.")
             break
     return calendario
 
-# Função para imprimir cronograma
-def imprimir_cronograma(calendario):
-    print("\nCronograma:")
-    for tarefa, (inicio, fim) in calendario.items():
-        print(f"{tarefa}: {inicio.strftime('%Y-%m-%d')} -> {fim.strftime('%Y-%m-%d')}")
-
-# Função para desenhar gráfico de Gantt
-def desenhar_gantt(calendario, nome_obra, morada):
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    tarefas = list(calendario.keys())
-    for i, tarefa in enumerate(tarefas):
-        inicio, fim = calendario[tarefa]
-        duracao = (fim - inicio).days
-        ax.barh(i, duracao, left=inicio, color='skyblue')
-
-    ax.set_yticks(range(len(tarefas)))
-    ax.set_yticklabels([tarefa.replace('_', ' ').capitalize() for tarefa in tarefas])
-    ax.invert_yaxis()
-    ax.set_xlabel('Data')
-    ax.set_title(f'Cronograma da Obra: {nome_obra} - {morada}')
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-# Função para gerar relatório em PDF
-def gerar_relatorio_pdf(nome_obra, morada, calendario, tarefas_selecionadas):
+def gerar_pdf(nome, morada, calendario):
     if not os.path.exists("projetos_guardados"):
         os.makedirs("projetos_guardados")
-
-    caminho_pdf = f"projetos_guardados/cronograma_{nome_obra.replace(' ', '_')}.pdf"
-    c = canvas.Canvas(caminho_pdf, pagesize=letter)
+    caminho = f"projetos_guardados/{nome.replace(' ', '_')}.pdf"
+    c = canvas.Canvas(caminho, pagesize=letter)
     width, height = letter
-
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, height - 50, f"Cronograma da Obra: {nome_obra}")
+    c.drawString(50, height - 50, f"Obra: {nome}")
     c.setFont("Helvetica", 12)
     c.drawString(50, height - 80, f"Morada: {morada}")
-
     y = height - 120
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, y, "Cronograma de Tarefas:")
-    c.setFont("Helvetica", 12)
-    y -= 20
+    c.drawString(50, y, "Tarefas:")
     for tarefa, (inicio, fim) in calendario.items():
-        texto = f"{tarefa.replace('_', ' ').capitalize()}: {inicio.strftime('%d-%m-%Y')} até {fim.strftime('%d-%m-%Y')}"
-        c.drawString(60, y, texto)
         y -= 20
+        c.drawString(60, y, f"{tarefa}: {inicio.strftime('%d-%m-%Y')} a {fim.strftime('%d-%m-%Y')}")
         if y < 50:
             c.showPage()
             y = height - 50
-
-    if y < 150:
-        c.showPage()
-        y = height - 50
-
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, y, "Tarefas Incluídas:")
-    c.setFont("Helvetica", 12)
-    y -= 20
-    for tarefa in tarefas_selecionadas:
-        c.drawString(60, y, tarefa.replace('_', ' ').capitalize())
-        y -= 20
-        if y < 50:
-            c.showPage()
-            y = height - 50
-
     c.save()
-    print(f"\nRelatório PDF salvo em: {caminho_pdf}")
+    st.success(f"PDF gerado: {caminho}")
 
-# === Interface simples ===
-print("\n--- Sistema de Gestão de Obras ---")
+def gantt_chart(calendario):
+    df = pd.DataFrame({
+        'Tarefa': list(calendario.keys()),
+        'Inicio': [inicio for inicio, fim in calendario.values()],
+        'Fim': [fim for inicio, fim in calendario.values()]
+    })
+    fig = px.timeline(df, x_start="Inicio", x_end="Fim", y="Tarefa", color="Tarefa")
+    fig.update_yaxes(autorange="reversed")
+    st.plotly_chart(fig, use_container_width=True)
 
-nome_obra = input("Nome da obra: ")
-morada = input("Morada da obra: ")
-tipo_obra = input("Tipo de obra (casa de banho, cozinha, etc.): ")
-area_m2 = float(input("Área da divisão (m²): "))
-data_material = input("Data de chegada dos materiais (YYYY-MM-DD): ")
-prazo_final = input("Prazo final para terminação (YYYY-MM-DD): ")
+# Streamlit App
+st.title("Home Detail - Gestão de Obras")
+st.subheader("Planeamento de Obras e Gestão de Equipa")
 
-# Converter datas para datetime
-data_material = datetime.strptime(data_material, '%Y-%m-%d')
-prazo_final = datetime.strptime(prazo_final, '%Y-%m-%d')
+nome_obra = st.text_input("Nome da obra")
+morada = st.text_input("Morada")
+area_m2 = st.number_input("Área (m²)", min_value=1.0)
+data_inicio = st.date_input("Data de Início")
+prazo_final = st.date_input("Prazo Máximo de Conclusão")
 
-# Seleção de tarefas
-print("\nIndique as tarefas necessárias (s para sim, n para não):")
-tarefas_necessarias = []
-for tarefa in task_times.keys():
-    resposta = input(f"{tarefa.replace('_', ' ').capitalize()}? (s/n): ").lower()
-    if resposta == 's':
-        tarefas_necessarias.append(tarefa)
+st.subheader("Selecionar Tarefas")
+tarefas_escolhidas = st.multiselect("Quais tarefas esta obra tem?", list(task_times.keys()))
 
-if not tarefas_necessarias:
-    print("Nenhuma tarefa selecionada. Programa encerrado.")
-    exit()
+if st.button("Gerar Cronograma"):
+    if nome_obra and morada and tarefas_escolhidas:
+        tempos = calcular_tempo(area_m2, tarefas_escolhidas)
+        calendario = agendar(tempos, datetime.combine(data_inicio, datetime.min.time()))
 
-# Calcular tempos
-tempo_total = calcular_tempo_total(area_m2, tarefas_necessarias)
+        st.success("Cronograma gerado!")
+        st.write("### Detalhes:")
+        for tarefa, (inicio, fim) in calendario.items():
+            st.write(f"**{tarefa}**: {inicio.strftime('%d-%m-%Y')} → {fim.strftime('%d-%m-%Y')}")
 
-# Agendar
-calendario = agendar_tarefas(tempo_total, data_material, tarefas_necessarias)
+        gantt_chart(calendario)
 
-# Mostrar resultado
-imprimir_cronograma(calendario)
-
-desenhar_gantt(calendario, nome_obra, morada)
-
-# Gerar relatório PDF
-gerar = input("\nQueres gerar o relatório em PDF? (s/n): ").lower()
-if gerar == 's':
-    gerar_relatorio_pdf(nome_obra, morada, calendario, tarefas_necessarias)
-
-print("\n--- Fim do Planeamento ---")
+        if st.button("Gerar PDF"):
+            gerar_pdf(nome_obra, morada, calendario)
+    else:
+        st.warning("Preenche todos os campos e seleciona pelo menos uma tarefa!")
