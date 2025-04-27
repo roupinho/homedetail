@@ -1,5 +1,8 @@
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+import os
 
 # Definir equipas e especialidades
 workers = {
@@ -116,6 +119,51 @@ def desenhar_gantt(calendario, nome_obra, morada):
     plt.tight_layout()
     plt.show()
 
+# Função para gerar relatório em PDF
+def gerar_relatorio_pdf(nome_obra, morada, calendario, tarefas_selecionadas):
+    if not os.path.exists("projetos_guardados"):
+        os.makedirs("projetos_guardados")
+
+    caminho_pdf = f"projetos_guardados/cronograma_{nome_obra.replace(' ', '_')}.pdf"
+    c = canvas.Canvas(caminho_pdf, pagesize=letter)
+    width, height = letter
+
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, height - 50, f"Cronograma da Obra: {nome_obra}")
+    c.setFont("Helvetica", 12)
+    c.drawString(50, height - 80, f"Morada: {morada}")
+
+    y = height - 120
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, y, "Cronograma de Tarefas:")
+    c.setFont("Helvetica", 12)
+    y -= 20
+    for tarefa, (inicio, fim) in calendario.items():
+        texto = f"{tarefa.replace('_', ' ').capitalize()}: {inicio.strftime('%d-%m-%Y')} até {fim.strftime('%d-%m-%Y')}"
+        c.drawString(60, y, texto)
+        y -= 20
+        if y < 50:
+            c.showPage()
+            y = height - 50
+
+    if y < 150:
+        c.showPage()
+        y = height - 50
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, y, "Tarefas Incluídas:")
+    c.setFont("Helvetica", 12)
+    y -= 20
+    for tarefa in tarefas_selecionadas:
+        c.drawString(60, y, tarefa.replace('_', ' ').capitalize())
+        y -= 20
+        if y < 50:
+            c.showPage()
+            y = height - 50
+
+    c.save()
+    print(f"\nRelatório PDF salvo em: {caminho_pdf}")
+
 # === Interface simples ===
 print("\n--- Sistema de Gestão de Obras ---")
 
@@ -152,5 +200,10 @@ calendario = agendar_tarefas(tempo_total, data_material, tarefas_necessarias)
 imprimir_cronograma(calendario)
 
 desenhar_gantt(calendario, nome_obra, morada)
+
+# Gerar relatório PDF
+gerar = input("\nQueres gerar o relatório em PDF? (s/n): ").lower()
+if gerar == 's':
+    gerar_relatorio_pdf(nome_obra, morada, calendario, tarefas_necessarias)
 
 print("\n--- Fim do Planeamento ---")
