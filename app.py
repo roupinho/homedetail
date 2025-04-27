@@ -5,7 +5,6 @@ import plotly.express as px
 import os
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-import base64
 
 # Definir equipas
 workers = {
@@ -20,29 +19,29 @@ workers = {
 # Especialidades múltiplas
 multiskilled = 3
 
-# Tempos de tarefas
+# Tempos de tarefas (ajustados para menos dias)
 task_times = {
-    'Remocao Armarios Loicas': 0.5,
-    'Demolicoes Rocos': 1,
-    'Demolicao Paredes': 2,
-    'Canalizacoes': 0.5,
-    'Eletricidades': 0.5,
-    'Assentamento Base Duche': 0.5,
-    'Assentamento Sanitario': 0.5,
-    'Estuque': 2,
-    'Pintura': 1,
-    'Montagem Moveis': 2,
-    'Barramento Paredes': 1,
-    'Regularizacao Pavimento': 1,
-    'Preparacao Paredes': 1,
-    'Teto Falso Montagem': 1,
-    'Acabamento Pintura Teto Falso': 1,
-    'Divisoria Gesso Laminado': 1,
-    'Pre Instalacao AC': 1,
-    'Assentamento Soalho': 0.5,
-    'Assentamento Ladrilho': 1,
-    'Assentamento Azulejo': 1,
-    'Caixilharias': 1
+    'Remocao Armarios Loicas': 0.2,
+    'Demolicoes Rocos': 0.5,
+    'Demolicao Paredes': 1,
+    'Canalizacoes': 0.3,
+    'Eletricidades': 0.3,
+    'Assentamento Base Duche': 0.3,
+    'Assentamento Sanitario': 0.3,
+    'Estuque': 1,
+    'Pintura': 0.5,
+    'Montagem Moveis': 1,
+    'Barramento Paredes': 0.5,
+    'Regularizacao Pavimento': 0.5,
+    'Preparacao Paredes': 0.5,
+    'Teto Falso Montagem': 0.5,
+    'Acabamento Pintura Teto Falso': 0.5,
+    'Divisoria Gesso Laminado': 0.5,
+    'Pre Instalacao AC': 0.5,
+    'Assentamento Soalho': 0.3,
+    'Assentamento Ladrilho': 0.5,
+    'Assentamento Azulejo': 0.5,
+    'Caixilharias': 0.5
 }
 
 # Dependencias
@@ -82,14 +81,16 @@ def agendar(tarefas, inicio):
                 continue
             deps = dependencies.get(tarefa, [])
             if all(d in concluidas for d in deps):
-                calendario[tarefa] = (dia_atual, dia_atual + timedelta(days=int(duracao)))
-                dia_atual += timedelta(days=int(duracao))
+                calendario[tarefa] = (dia_atual, dia_atual + timedelta(days=max(1, int(duracao))))
+                dia_atual += timedelta(days=max(1, int(duracao)))
                 concluidas.add(tarefa)
                 progresso = True
         if not progresso:
             st.error("Erro de dependências.")
             break
     return calendario
+
+import base64
 
 def gerar_pdf(nome, morada, calendario):
     if not os.path.exists("projetos_guardados"):
@@ -103,20 +104,20 @@ def gerar_pdf(nome, morada, calendario):
     c.drawString(50, height - 80, f"Morada: {morada}")
     y = height - 120
     c.drawString(50, y, "Tarefas:")
-    for tarefa, (inicio, fim) in calendario.items():
+    for tarefa, (inicio, fim) in sorted(calendario.items(), reverse=True):
         y -= 20
         c.drawString(60, y, f"{tarefa}: {inicio.strftime('%d-%m-%Y')} a {fim.strftime('%d-%m-%Y')}")
         if y < 50:
             c.showPage()
             y = height - 50
     c.save()
-    return caminho
 
-def link_download_pdf(file_path, label="📥 Fazer Download do PDF"):
-    with open(file_path, "rb") as f:
-        base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-    href = f'<a href="data:application/octet-stream;base64,{base64_pdf}" download="{os.path.basename(file_path)}">{label}</a>'
-    return href
+    # Gerar botão de download
+    with open(caminho, "rb") as pdf_file:
+        pdf_bytes = pdf_file.read()
+        b64 = base64.b64encode(pdf_bytes).decode()
+        href = f'<a href="data:application/octet-stream;base64,{b64}" download="{nome.replace(" ", "_")}.pdf">📄 Baixar PDF</a>'
+        st.markdown(href, unsafe_allow_html=True)
 
 def gantt_chart(calendario):
     df = pd.DataFrame({
@@ -124,7 +125,8 @@ def gantt_chart(calendario):
         'Inicio': [inicio for inicio, fim in calendario.values()],
         'Fim': [fim for inicio, fim in calendario.values()]
     })
-    fig = px.timeline(df, x_start="Inicio", x_end="Fim", y="Tarefa", color="Tarefa")
+    fig = px.timeline(df, x_start="Inicio", x_end="Fim", y="Tarefa", color_discrete_sequence=["black", "grey"])
+    fig.update_layout(coloraxis_showscale=False)
     fig.update_yaxes(autorange="reversed")
     st.plotly_chart(fig, use_container_width=True)
 
@@ -154,7 +156,6 @@ if st.button("Gerar Cronograma"):
         gantt_chart(calendario)
 
         if st.button("Gerar PDF"):
-            caminho_pdf = gerar_pdf(nome_obra, morada, calendario)
-            st.markdown(link_download_pdf(caminho_pdf), unsafe_allow_html=True)
+            gerar_pdf(nome_obra, morada, calendario)
     else:
         st.warning("Preenche todos os campos e seleciona pelo menos uma tarefa!")
