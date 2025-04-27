@@ -1,11 +1,24 @@
-import streamlit as st
 from datetime import datetime, timedelta
-import pandas as pd
 import matplotlib.pyplot as plt
+
+# Definir equipas e especialidades
+workers = {
+    'pedreiro': 5,
+    'servente': 10,
+    'electricista': 1,
+    'canalizador': 1,
+    'pintor': 2,
+    'gesso_laminado': 2
+}
+
+# Pedreiros com múltiplas especialidades
+multiskilled = 3
 
 # Definir tempos por tarefa (em dias por unidade)
 task_times = {
+    'remocao_armarios_loicas': 0.5,
     'demolicoes_rocos': 1,
+    'demolicao_paredes': 2,
     'canalizacoes': 0.5,
     'eletricidades': 0.5,
     'assentamento_base_duche': 0.5,
@@ -13,7 +26,6 @@ task_times = {
     'estuque': 2,
     'pintura': 1,
     'montagem_moveis': 2,
-    'demolicao_paredes': 2,
     'barramento_paredes': 1,
     'regularizacao_pavimento': 1,
     'preparacao_paredes': 1,
@@ -23,11 +35,14 @@ task_times = {
     'pre_instalacao_ac': 1,
     'assentamento_soalho': 0.5,
     'assentamento_ladrilho': 1,
-    'assentamento_azulejo': 1
+    'assentamento_azulejo': 1,
+    'caixilharias': 1
 }
 
 # Dependências de tarefas
 task_dependencies = {
+    'demolicoes_rocos': ['remocao_armarios_loicas'],
+    'demolicao_paredes': ['remocao_armarios_loicas'],
     'canalizacoes': ['demolicoes_rocos'],
     'eletricidades': ['demolicoes_rocos'],
     'assentamento_base_duche': ['canalizacoes'],
@@ -44,6 +59,7 @@ task_dependencies = {
     'assentamento_azulejo': ['regularizacao_pavimento']
 }
 
+# Função para calcular duração total baseada na área
 def calcular_tempo_total(area_m2, tarefas):
     unidades = area_m2 / 4
     tempo_total = {}
@@ -52,6 +68,7 @@ def calcular_tempo_total(area_m2, tarefas):
         tempo_total[tarefa] = round(tempo, 1)
     return tempo_total
 
+# Função para agendar tarefas respeitando dependências ajustadas
 def agendar_tarefas(tempo_total, data_inicio, tarefas_selecionadas):
     calendario = {}
     tarefas_concluidas = set()
@@ -70,54 +87,70 @@ def agendar_tarefas(tempo_total, data_inicio, tarefas_selecionadas):
                 tarefas_concluidas.add(tarefa)
                 progresso = True
         if not progresso:
-            st.error("Erro: dependências não resolvidas. Verifique seleção de tarefas.")
+            print("\nErro: dependências não resolvidas. Verifique seleção de tarefas.")
             break
     return calendario
 
-def desenhar_gantt(calendario):
-    fig, ax = plt.subplots(figsize=(12, 6))
+# Função para imprimir cronograma
+def imprimir_cronograma(calendario):
+    print("\nCronograma:")
+    for tarefa, (inicio, fim) in calendario.items():
+        print(f"{tarefa}: {inicio.strftime('%Y-%m-%d')} -> {fim.strftime('%Y-%m-%d')}")
+
+# Função para desenhar gráfico de Gantt
+def desenhar_gantt(calendario, nome_obra, morada):
+    fig, ax = plt.subplots(figsize=(10, 6))
+
     tarefas = list(calendario.keys())
     for i, tarefa in enumerate(tarefas):
         inicio, fim = calendario[tarefa]
         duracao = (fim - inicio).days
         ax.barh(i, duracao, left=inicio, color='skyblue')
+
     ax.set_yticks(range(len(tarefas)))
     ax.set_yticklabels([tarefa.replace('_', ' ').capitalize() for tarefa in tarefas])
     ax.invert_yaxis()
     ax.set_xlabel('Data')
-    ax.set_title('Cronograma da Obra')
+    ax.set_title(f'Cronograma da Obra: {nome_obra} - {morada}')
     plt.grid(True)
-    st.pyplot(fig)
+    plt.tight_layout()
+    plt.show()
 
-# ================== STREAMLIT ===================
-st.title("📋 Gestão de Obras")
+# === Interface simples ===
+print("\n--- Sistema de Gestão de Obras ---")
 
-with st.form("dados_obra"):
-    morada = st.text_input("🏠 Morada da Obra")
-    tipo_obra = st.selectbox("📦 Tipo de Obra", ["Casa de banho", "Cozinha", "Remodelação Total", "Outros"])
-    area_m2 = st.number_input("📏 Área da divisão (m2)", min_value=1.0, step=1.0)
-    data_material = st.date_input("📅 Data de chegada dos materiais")
-    prazo_final = st.date_input("🏁 Prazo final da obra")
+nome_obra = input("Nome da obra: ")
+morada = input("Morada da obra: ")
+tipo_obra = input("Tipo de obra (casa de banho, cozinha, etc.): ")
+area_m2 = float(input("Área da divisão (m²): "))
+data_material = input("Data de chegada dos materiais (YYYY-MM-DD): ")
+prazo_final = input("Prazo final para terminação (YYYY-MM-DD): ")
 
-    st.markdown("### Selecione as tarefas necessárias:")
-    tarefas_selecionadas = []
-    for tarefa in task_times.keys():
-        if st.checkbox(tarefa.replace('_', ' ').capitalize()):
-            tarefas_selecionadas.append(tarefa)
+# Converter datas para datetime
+data_material = datetime.strptime(data_material, '%Y-%m-%d')
+prazo_final = datetime.strptime(prazo_final, '%Y-%m-%d')
 
-    submitted = st.form_submit_button("📈 Gerar Cronograma")
+# Seleção de tarefas
+print("\nIndique as tarefas necessárias (s para sim, n para não):")
+tarefas_necessarias = []
+for tarefa in task_times.keys():
+    resposta = input(f"{tarefa.replace('_', ' ').capitalize()}? (s/n): ").lower()
+    if resposta == 's':
+        tarefas_necessarias.append(tarefa)
 
-if submitted:
-    if not tarefas_selecionadas:
-        st.warning("⚠️ Selecione pelo menos uma tarefa!")
-    else:
-        tempo_total = calcular_tempo_total(area_m2, tarefas_selecionadas)
-        calendario = agendar_tarefas(tempo_total, datetime.combine(data_material, datetime.min.time()), tarefas_selecionadas)
+if not tarefas_necessarias:
+    print("Nenhuma tarefa selecionada. Programa encerrado.")
+    exit()
 
-        st.success("✅ Cronograma Gerado!")
-        st.subheader("Resumo:")
-        for tarefa, (inicio, fim) in calendario.items():
-            st.write(f"**{tarefa.replace('_', ' ').capitalize()}**: {inicio.strftime('%Y-%m-%d')} → {fim.strftime('%Y-%m-%d')}")
+# Calcular tempos
+tempo_total = calcular_tempo_total(area_m2, tarefas_necessarias)
 
-        st.subheader("Gráfico de Gantt:")
-        desenhar_gantt(calendario)
+# Agendar
+calendario = agendar_tarefas(tempo_total, data_material, tarefas_necessarias)
+
+# Mostrar resultado
+imprimir_cronograma(calendario)
+
+desenhar_gantt(calendario, nome_obra, morada)
+
+print("\n--- Fim do Planeamento ---")
